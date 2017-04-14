@@ -5,7 +5,9 @@ from collections import Counter
 #import rospy
 #import roslib
 import numpy
-import Image
+from numpy import array
+from PIL import Image
+
 
 ##opening the world position file for reading
 #world_file = open("world_positions.txt", "r")
@@ -68,7 +70,14 @@ for x in xrange(2,len(coordinates)): #ignoring first 2 coordinates as they are t
     
    
     
-plt.show()
-plt.savefig('plotcircles.png' )
+#plt.show()
+plt.savefig('plotcircles.png')
+#converting to pgm see http://code.activestate.com/recipes/577591-conversion-of-pil-image-and-numpy-array/
+img = Image.open("plotcircles.png")
+arr = array(img)
+img = Image.fromarray(arr)
+img.save("plotcircles.pgm")
+
+
 
 
