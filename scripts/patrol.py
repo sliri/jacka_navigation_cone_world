@@ -14,15 +14,16 @@ import numpy as np
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion
 from math import radians
-from transform_utils import quat_to_angle, normalize_angle
-from math import radians, copysign, sqrt, pow, pi
+from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+import actionlib
+from actionlib_msgs.msg import *
+from geometry_msgs.msg import Pose, Point, Quaternion
+
 
 
 ########################################################################
 #MAIN EXAMPLE TAKEN FORM
 #https://github.com/markwsilliman/turtlebot/blob/master/goforward.py
-# ros-by-example/rbx_vol_1/rbx1_nav/nodes/nav_square.py 
-#https://github.com/pirobot/ros-by-example/blob/master/rbx_vol_1/rbx1_nav/nodes/nav_square.py
 #########################################################################
 class navigation():
     def __init__(self):
@@ -45,7 +46,6 @@ class navigation():
         #see http://wiki.ros.org/rospy/Overview/Initialization%20and%20Shutdown
         rospy.on_shutdown(self.shutdown)
              
-
         
         # Subscribe to the odom topic and set 
         # the appropriate callbacks 
@@ -67,34 +67,35 @@ class navigation():
         # rostopic echo '/jackal_velocity_controller/odom' and get the names
         # or rostopic type /topic_name | rosmsg show
         self.frame_id = '/odom'
-        self.child_id = '/base_link'      
-                
-        self.linear_velocity =0.3#0.1  #m/sec
-        self.angular_velocity =math.radians(100) #rad/sec
-        self.angular_speed = rospy.get_param("~angular_speed", 0.7) # radians per second
-        self.angular_tolerance = rospy.get_param("~angular_tolerance", radians(0.5)) # degrees to radians
-        self.linear_tol = 0.2     
-        self.angular_tol = 0.5
+        self.child_id = '/base_link' 
+        
+        
+       
    
        # Create publisher for cmd_vel topic
        # cmd_vel publisher can "talk" to Jackal and tell it to move             
         self.cmd_vel = rospy.Publisher('/jackal_velocity_controller/cmd_vel', Twist, queue_size=10)
+
+       # Tell the action client that we want to spin a thread by default
+        self.move_base = actionlib.SimpleActionClient("move_base", MoveBaseAction)
+        rospy.loginfo("Wait for the action server to come up")
+        # Allow up to 5 seconds for the action server to come up
+        self.move_base.wait_for_server(rospy.Duration(5))
+
         
-#         #Velocities,tolerances
-#        self.angular_velocity = math.radians(5) #rad/sec
-#        self.linear_velocity =0.1#0.1  #m/sec
-#        self.linear_tol = 0.2     
-#        self.angular_tol = 1
-#        self.xtarget=6
-#        self.ytarget=0
-#        
+        
+       #Constants, Flags, Velocities,tolerances        
+        self.linear_velocity =0.3#0.1  #m/sec
+        self.angular_velocity =math.radians(100) #rad/sec
+        self.linear_tol = 0.2     
+        self.angular_tol = 0.5       
+       
        
         
-        
-        # Publishing rate = 200 Hz look for odometry
+        # Publishing rate = 100 Hz look for odometry
         #for sleeping and rate see
         #http://wiki.ros.org/rospy/Overview/Time         
-        self.rate = rospy.Rate(20)
+        self.rate = rospy.Rate(10)
         rospy.loginfo('Waiting for odometry to become available..')
         while (not self.odometry_on):
             rospy.loginfo("Odometry on is %s !" %self.odometry_on)
@@ -110,7 +111,7 @@ class navigation():
      #self.odom_based_linear_move(1) 
      self.odom_based_rotate_by_angle(90)
      self.rate.sleep()
-     #self.shutdown
+     self.shutdown
       
      #self.turn()
            
@@ -144,109 +145,28 @@ class navigation():
   
     
              
-#    def odom_based_rotate_by_angle(self, rotate_by_angle):
-#        
-#        # all angles are in degrees
-#        # Twist is a datatype for velocity
-#        self.move_cmd = Twist()
-#        actual_turn_angle = 0
-#        last_rotation=self.rotation
-#        #Stop all linear move,set angular velocity 
-#        self.move_cmd.angular.z = self.angular_velocity if rotate_by_angle > 0 else -self.angular_velocity            
-#        self.move_cmd.linear.x = 0
-#        while (abs(rotate_by_angle) - abs(actual_turn_angle) > self.angular_tol):            
-#           # if self.odometry_on: 
-#             self.cmd_vel.publish(self.move_cmd)             
-#            # 
-#             #Update
-#             delta_theta = normalize_angle(last_rotation - self.rotation)
-#             actual_turn_angle += delta_theta
-#             self.rate.sleep()
-#            
-#        #Stop! 
-#        self.move_cmd.angular.z=0
-#        rospy.loginfo('Robot Turned %s. degrees.' % (actual_turn_angle))       
-#        return actual_turn_angle
-#    
-#    
-    
-    
-    
-    
-
-    #rotate by a specific angle
-    #see https://github.com/pirobot/ros-by-example/blob/master/rbx_vol_1/rbx1_nav/nodes/nav_square.py         
-    def odom_based_rotate_by_angle(self, angle):
-        # Stop the robot before rotating
-        move_cmd = Twist()
-        self.cmd_vel.publish(move_cmd)
-        rospy.sleep(1.0)
-        
-        # Track how far we have turned
-        turn_angle = 0
-        goal_angle = rospy.get_param("~goal_angle", radians(angle)) # degrees converted to radians  
-        rotation = self.rotation
-        # Track the last angle measured
-        last_angle = self.rotation
-
-        # Set the movement command to a rotation
-        move_cmd.angular.z = self.angular_speed        
-        
-        # Begin the rotation
-        while abs(turn_angle + self.angular_tolerance) < abs(goal_angle) and not rospy.is_shutdown():
-            # Publish the Twist message and sleep 1 cycle         
-            self.cmd_vel.publish(move_cmd)            
-            self.rate.sleep()
-            # Get the current rotation
-            rotation =  self.rotation           
+    def odom_based_rotate_by_angle(self, rotate_by_angle):
+        # all angles are in degrees
+        # Twist is a datatype for velocity
+        self.move_cmd = Twist()
+        actual_turn_angle = 0
+        last_rotation=self.rotation
+        #Stop all linear move,set angular velocity 
+        self.move_cmd.angular.z = self.angular_velocity if rotate_by_angle > 0 else -self.angular_velocity            
+        self.move_cmd.linear.x = 0
+        while (abs(rotate_by_angle) - abs(actual_turn_angle) > self.angular_tol):            
+           # if self.odometry_on: 
+             self.cmd_vel.publish(self.move_cmd)             
+            # 
+             #Update
+             delta_theta = abs(last_rotation - self.rotation)
+             actual_turn_angle += delta_theta
+             self.rate.sleep()
             
-            # Compute the amount of rotation since the last lopp           
-            delta_angle = normalize_angle(rotation - last_angle)
-            
-            turn_angle += delta_angle
-           # rospy.loginfo('Robot Turned %s. degrees.' % (delta_angle))       
-            last_angle = rotation
-
-        move_cmd = Twist()
-        self.cmd_vel.publish(move_cmd)
-        rospy.sleep(1.0)
-        
-        # Stop the robot when we are done
-        self.cmd_vel.publish(Twist())
-            
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+        #Stop! 
+        self.move_cmd.angular.z=0
+        rospy.loginfo('Robot Turned %s. degrees.' % (actual_turn_angle))       
+        return actual_turn_angle
     
     
         
@@ -333,11 +253,73 @@ class navigation():
 
 
 
+#This function makes the jackal go to a specific location 
+###########################################################     
+    def goto(self, pos, quat):
+
+        # Send a goal
+        self.goal_sent = True
+	goal = MoveBaseGoal()
+	goal.target_pose.header.frame_id = 'odom'
+	goal.target_pose.header.stamp = rospy.Time.now()
+        goal.target_pose.pose = Pose(Point(pos['x'], pos['y'], 0.000),
+                                     Quaternion(quat['r1'], quat['r2'], quat['r3'], quat['r4']))
+
+	# Start moving
+        #rospy.loginfo("Go to (%s, %s) pose", pos['x'], quat['y'])
+        rospy.loginfo("Go to (%s, %s) pose", pos['x'], pos['y'])
+        self.move_base.send_goal(goal)
+
+	# Allow TurtleBot up to 120 seconds to complete task
+	success = self.move_base.wait_for_result(rospy.Duration(120)) 
+
+        state = self.move_base.get_state()
+        result = False
+
+        if success and state == GoalStatus.SUCCEEDED:
+            # We made it!
+            result = True
+        else:
+            self.move_base.cancel_goal()
+
+        self.goal_sent = False
+
+        if result:
+            rospy.loginfo("Hooray, reached the desired pose")
+        else:
+            rospy.loginfo("The base failed to reach the desired pose")
+
+        # Sleep to give the last log messages time to be sent
+        rospy.sleep(1)       
+        
+        return result
+
+
+
+    def move_base_turn_by_angle(self,angle):
+
+      # Customize the following values so they are appropriate for your location                  
+      position = {'x':  self.x, 'y' : self.y}
+      quaternion = {'r1' : 0.000, 'r2' : 0.000, 'r3' : 0.000, 'r4' : 1.000}
+      ###########################################################################
+     
+      success = self.goto(position, quaternion)
+      if success:
+         rospy.loginfo("truned by %s degrees" % angle)   
+        
+        
+        
+        
+        
+        
+   
+
+
 
 #I don't undertand the args thing
 #Just use it as is        
 def main(args):
-     #navigation()     
+     navigation()     
      rospy.init_node('navigation', anonymous=False)
      navigation().navigate()
      try:
