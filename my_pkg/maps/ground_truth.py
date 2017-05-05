@@ -21,7 +21,7 @@ from PIL import Image
 #print ("There are %s cones in the world"%cones)
 
 #CONSTANTS
-cone_radius=0.2
+cone_radius=0.1
 orchard_length=12
 orchard_width=12
 
@@ -48,9 +48,9 @@ with open("world_positions.txt","r") as f:
 #see http://stackoverflow.com/questions/14908576/how-to-remove-frame-from-matplotlib-pyplot-figure-vs-matplotlib-figure-frame
 
 plt.close("all")
-fig = plt.figure( dpi=124,figsize=(8,8)) #set image size and DPI are optional
-for x in xrange(2,len(coordinates)): #ignoring first 2 coordinates as they are the origin and the jackal locations!
-    circlex = plt.Circle(coordinates[x],cone_radius, color='black', linewidth=2,fill=False)
+fig = plt.figure( dpi=120,figsize=(8,8)) #set image size and DPI are optional
+for i in xrange(2,len(coordinates)): #ignoring first 2 coordinates as they are the origin and the jackal locations!
+    circlex = plt.Circle(coordinates[i],cone_radius, color='black', linewidth=2,fill=False)
     plt.axis([-orchard_length/2, orchard_length/2, -orchard_width/2, orchard_width/2])
     fig = plt.gcf()
     ax = fig.gca()
@@ -71,12 +71,12 @@ for x in xrange(2,len(coordinates)): #ignoring first 2 coordinates as they are t
    
     
 #plt.show()
-plt.savefig('plotcircles.png')
+plt.savefig('cone_world.png')
 #converting to pgm see http://code.activestate.com/recipes/577591-conversion-of-pil-image-and-numpy-array/
-img = Image.open("plotcircles.png")
+img = Image.open("cone_world.png")
 arr = array(img)
 img = Image.fromarray(arr)
-img.save("plotcircles.pgm")
+img.save("cone_world.pgm")
 
 
 
